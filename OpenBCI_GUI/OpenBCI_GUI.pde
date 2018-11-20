@@ -108,7 +108,7 @@ int openBCI_baud = 115200; //baud rate from the Arduino
 String ganglion_portName = "N/A";
 
 String wifi_portName = "N/A";
-String wifi_ipAddress = "192.168.4.1";
+String wifi_ipAddress = "10.0.1.18";
 
 final static String PROTOCOL_BLE = "ble";
 final static String PROTOCOL_BLED112 = "bled112";
@@ -734,7 +734,9 @@ void initSystem() {
     initPlaybackFileToTable(); //found in W_Playback.pde
   }
 
+
   verbosePrint("OpenBCI_GUI: initSystem: Initializing core data objects");
+  abandonInit = false;
 
   // Nfft = getNfftSafe();
   nDataBackBuff = 3*(int)getSampleRateSafe();
@@ -752,6 +754,9 @@ void initSystem() {
       accelerometerBuff[i][j] = 0;
     }
   }
+  verbosePrint("Debugging: -- Init 0.5 --" + millis());
+  println("nchan = " + nchan);
+  abandonInit = false;
   //data_std_uV = new float[nchan];
   data_elec_imp_ohm = new float[nchan];
   is_railed = new DataStatus[nchan];
@@ -759,12 +764,13 @@ void initSystem() {
   for (int i=0; i<nDataBackBuff; i++) {
     dataPacketBuff[i] = new DataPacket_ADS1299(nchan, n_aux_ifEnabled);
   }
+  verbosePrint("Debugging: -- Init 0.7 --" + millis());
   dataProcessing = new DataProcessing(nchan, getSampleRateSafe());
   dataProcessing_user = new DataProcessing_User(nchan, getSampleRateSafe());
-
+  verbosePrint("Debugging: -- Init 0.8 --" + millis());
   //initialize the data
   prepareData(dataBuffX, dataBuffY_uV, getSampleRateSafe());
-
+  setupWidgetManager();
   verbosePrint("OpenBCI_GUI: initSystem: -- Init 1 -- " + millis());
   verbosePrint("OpenBCI_GUI: initSystem: Initializing FFT data objects");
 
@@ -849,7 +855,7 @@ void initSystem() {
     if (eegDataSource == DATASOURCE_GANGLION) openNewLogFile(fileName); // println("open ganglion output file");
 
     // wm = new WidgetManager(this);
-    setupWidgetManager();
+    //setupWidgetManager();
 
     if (!abandonInit) {
       println("  3c -- " + millis());
