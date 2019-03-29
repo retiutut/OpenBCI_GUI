@@ -1340,8 +1340,19 @@ void systemDraw() { //for drawing to the screen
                 surface.setTitle(int(frameRate) + " fps, Playing " + getElapsedTimeInSeconds(currentTableRowIndex) + " of " + int(float(playbackData_table.getRowCount())/getSampleRateSafe()) + " secs, Reading from: " + playbackData_fname);
                 break;
             case DATASOURCE_GANGLION:
-                surface.setTitle(int(frameRate) + " fps, Ganglion!");
-                break;
+              switch (outputDataSource) {
+              case OUTPUT_SOURCE_ODF:
+                  surface.setTitle(int(frameRate) + " fps, " + int(float(fileoutput_odf.getRowsWritten())/getSampleRateSafe()) + " secs Saved, Writing to " + output_fname);
+                  break;
+              case OUTPUT_SOURCE_BDF:
+                  surface.setTitle(int(frameRate) + " fps, " + int(fileoutput_bdf.getRecordsWritten()) + " secs Saved, Writing to " + output_fname);
+                  break;
+              case OUTPUT_SOURCE_NONE:
+              default:
+                  surface.setTitle(int(frameRate) + " fps, Ganglion!");
+                  break;
+              }
+              break;
             }
         }
 

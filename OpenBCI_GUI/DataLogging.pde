@@ -1318,10 +1318,14 @@ public class OutputFile_BDF {
             writeString(getDateString(startTime, startDateFormat), o);
             writeString(getDateString(startTime, startTimeFormat), o);
             writeString(padStringRight(str(getBytesInHeader()),BDF_HEADER_SIZE_BYTES_IN_HEADER), o);
-            writeString(padStringRight("24BIT",BDF_HEADER_SIZE_RESERVED), o);//getContinuity(),BDF_HEADER_SIZE_RESERVED), o);
-            writeString(padStringRight(str(dataRecordsWritten),BDF_HEADER_SIZE_NUMBER_DATA_RECORDS), o);
+            writeString(padStringRight("     ",BDF_HEADER_SIZE_RESERVED), o);//getContinuity(),BDF_HEADER_SIZE_RESERVED), o);
+            writeString(padStringRight(str(dataRecordsWritten-1),BDF_HEADER_SIZE_NUMBER_DATA_RECORDS), o);
             writeString(padStringRight("1",BDF_HEADER_SIZE_DURATION_OF_DATA_RECORD), o);
             writeString(padStringRight(str(getNbSignals()),BDF_HEADER_SIZE_NUMBER_SIGNALS), o);
+
+            println("BYTES IN HEADER: " + getBytesInHeader());
+            println("DATA RECORDS WRITTEN: " + dataRecordsWritten);
+
 
             writeStringArrayWithPaddingTimes(labelsEEG, BDF_HEADER_NS_SIZE_LABEL, o);
             if (eegDataSource == DATASOURCE_CYTON) writeStringArrayWithPaddingTimes(labelsAux, BDF_HEADER_NS_SIZE_LABEL, o);
