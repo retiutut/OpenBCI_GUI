@@ -604,9 +604,9 @@ class Hub {
                     }
                     // Sample number stuff
                     dataPacket.sampleIndex = json.getInt(TCP_JSON_KEY_SAMPLE_NUMBER);
-
+                    
                     if ((dataPacket.sampleIndex - prevSampleIndex) != 1) {
-                        if(dataPacket.sampleIndex != 0 || prevSampleIndex != PROTOCOL_BLE ? 200 : 255){  // if we rolled over, don't count as error
+                        if(dataPacket.sampleIndex != 0 || dataPacket.sampleIndex == (curProtocol == PROTOCOL_BLE ? 200 : 255)) {  // if we rolled over, don't count as error
                             bleErrorCounter++;
 
                             if(dataPacket.sampleIndex < prevSampleIndex){   //handle the situation in which the index jumps from 250s past 255, and back to 0
