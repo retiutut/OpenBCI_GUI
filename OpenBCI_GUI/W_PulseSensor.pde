@@ -1,9 +1,10 @@
 
 ////////////////////////////////////////////////////
 //
-//    W_PulseSensor.pde
+//  W_AnalogRead is used to visiualze analog voltage values
 //
-//    Created: Joel Murphy, Spring 2017
+//  Created: AJ Keller
+//
 //
 ///////////////////////////////////////////////////,
 
@@ -12,29 +13,27 @@ class W_PulseSensor extends Widget {
     //to see all core variables/methods of the Widget class, refer to Widget.pde
     //put your custom variables here...
 
+    private int numAnalogReadBars;
+    float xF, yF, wF, hF;
+    float arPadding;
+    float ar_x, ar_y, ar_h, ar_w; // values for actual time series chart (rectangle encompassing all analogReadBars)
+    float plotBottomWell;
+    float playbackWidgetHeight;
+    int analogReadBarHeight;
 
-    color graphStroke = #d2d2d2;
-    color graphBG = #f5f5f5;
-    color textColor = #000000;
+    PulseReadBar[] pulseReadBars;
 
-// Pulse Sensor Visualizer Stuff
-    int count = 0;
-    int heart = 0;
-    int PulseBuffSize = 3*currentBoard.getSampleRate(); // Originally 400
-    int BPMbuffSize = 100;
+    int[] xLimOptions = {0, 1, 3, 5, 10, 20}; // number of seconds (x axis of graph)
+    int[] yLimOptions = {0, 50, 100, 200, 400, 1000, 10000}; // 0 = Autoscale ... everything else is uV
 
-    int PulseWindowWidth;
-    int PulseWindowHeight;
-    int PulseWindowX;
-    int PulseWindowY;
-    int BPMwindowWidth;
-    int BPMwindowHeight;
-    int BPMwindowX;
-    int BPMwindowY;
-    int BPMposX;
-    int BPMposY;
-    int IBIposX;
-    int IBIposY;
+    private boolean allowSpillover = false;
+    private boolean visible = true;
+
+    //Initial dropdown settings
+    private int arInitialVertScaleIndex = 5;
+    private int arInitialHorizScaleIndex = 0;
+
+    /////////////////////////////////////////
     int padding = 15;
     color eggshell;
     color pulseWave;
@@ -55,54 +54,108 @@ class W_PulseSensor extends Widget {
     int[] rate;                    // array to hold last ten IBI values
     int sampleCounter;          // used to determine pulse timing
     int lastBeatTime;           // used to find IBI
-    int P =512;                      // used to find peak in pulse wave, seeded
+    int P = 512;                      // used to find peak in pulse wave, seeded
     int T = 512;                     // used to find trough in pulse wave, seeded
     int thresh = 530;                // used to find instant moment of heart beat, seeded
     int amp = 0;                   // used to hold amplitude of pulse waveform, seeded
     boolean firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
     boolean secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
-    int BPM;                   // int that holds raw Analog in 0. updated every 2mS
+    public int BPM = 0;                   // int that holds raw Analog in 0. updated every 2mS
     int Signal;                // holds the incoming raw data
-    int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
+    public int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
     boolean Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
     int lastProcessedDataPacketInd = 0;
+    int PulseBuffSize = 0;
+    int BPMbuffSize = 100;
+    /////////////////////////////////////////
+
     Button_obci analogModeButton;
 
     private AnalogCapableBoard analogBoard;
 
-    W_PulseSensor(PApplet _parent){
+    W_PulseSensor(PApplet _parent) {
         super(_parent); //calls the parent CONSTRUCTOR method of Widget (DON'T REMOVE)
 
-        // Pulse Sensor Stuff
-        eggshell = color(255, 253, 248);
-        pulseWave = color(224, 56, 45);
+        //Analog Read settings
+        settings.arVertScaleSave = 5; //updates in VertScale_AR()
+        settings.arHorizScaleSave = 0; //updates in Duration_AR()
 
-        PulseWaveY = new int[PulseBuffSize];
-        BPMwaveY = new int[BPMbuffSize];
-        rate = new int[10];
-        setPulseWidgetVariables();
-        initializePulseFinderVariables();
+        //This is the protocol for setting up dropdowns.
+        //Note that these 3 dropdowns correspond to the 3 global functions below
+        //You just need to make sure the "id" (the 1st String) has the same name as the corresponding function
+        addDropdown("VertScale_Pulse", "Vert Scale", Arrays.asList(settings.arVertScaleArray), arInitialVertScaleIndex);
+        addDropdown("Duration_Pulse", "Window", Arrays.asList(settings.arHorizScaleArray), arInitialHorizScaleIndex);
+
+        //set number of analog reads
+        numAnalogReadBars = 3;
+
+        xF = float(x); //float(int( ... is a shortcut for rounding the float down... so that it doesn't creep into the 1px margin
+        yF = float(y);
+        wF = float(w);
+        hF = float(h);
+
+        plotBottomWell = 45.0; //this appears to be an arbitrary vertical space adds GPlot leaves at bottom, I derived it through trial and error
+        arPadding = 10.0;
+        ar_x = xF + arPadding;
+        ar_y = yF + (arPadding);
+        ar_w = wF - arPadding*2;
+        ar_h = hF - playbackWidgetHeight - plotBottomWell - (arPadding*2);
+        analogReadBarHeight = int(ar_h/numAnalogReadBars);
 
         analogModeButton = new Button_obci((int)(x + 3), (int)(y + 3 - navHeight), 128, navHeight - 6, "ANALOG TOGGLE", 12);
         analogModeButton.setCornerRoundess((int)(navHeight-6));
         analogModeButton.setFont(p5,12);
         analogModeButton.textColorNotActive = color(255);
         analogModeButton.hasStroke(false);
-        analogModeButton.setHelpText("Click this button to activate/deactivate analog read on Cyton.");
+        if (selectedProtocol == BoardProtocol.WIFI) {
+            analogModeButton.setHelpText("Click this button to activate/deactivate analog read on Cyton pins A5(D11) and A6(D12).");
+        } else {
+            analogModeButton.setHelpText("Click this button to activate/deactivate analog read on Cyton pins A5(D11), A6(D12) and A7(D13).");
+        }
+
+        PulseBuffSize = 3 * currentBoard.getSampleRate(); // Originally 400
+        PulseWaveY = new int[PulseBuffSize];
+        BPMwaveY = new int[BPMbuffSize];
+        rate = new int[10];
+        initializePulseFinderVariables();
+
+        //create our channel bars and populate our pulseReadBars array!
+        pulseReadBars = new PulseReadBar[numAnalogReadBars];
+        for(int i = 0; i < numAnalogReadBars; i++) {
+            int analogReadBarY = int(ar_y) + i*(analogReadBarHeight); //iterate through bar locations
+            PulseReadBar tempBar = new PulseReadBar(_parent, i, int(ar_x), analogReadBarY, int(ar_w), analogReadBarHeight); //int _channelNumber, int _x, int _y, int _w, int _h
+            pulseReadBars[i] = tempBar;
+            pulseReadBars[i].adjustVertScale(yLimOptions[arInitialVertScaleIndex]);
+            //sync horiz axis to Time Series by default
+            pulseReadBars[i].adjustTimeAxis(w_timeSeries.xLimOptions[settings.tsHorizScaleSave]);
+        }
 
         analogBoard = (AnalogCapableBoard)currentBoard;
     }
 
-    void update(){
-        super.update(); //calls the parent update() method of Widget (DON'T REMOVE)
+    public boolean isVisible() {
+        return visible;
+    }
 
-        List<double[]> allData = currentBoard.getData(PulseBuffSize);
-        int[] analogChannels = analogBoard.getAnalogChannels();
+    public int getNumAnalogReads() {
+        return numAnalogReadBars;
+    }
 
-        for (int i=0; i < PulseBuffSize; i++ ) {
-            int signal = (int)(allData.get(i)[analogChannels[0]]);
-            processSignal(signal);
-            PulseWaveY[i] = signal;
+    public void setVisible(boolean _visible) {
+        visible = _visible;
+    }
+
+    void update() {
+        if(visible) {
+            super.update(); //calls the parent update() method of Widget (DON'T REMOVE)
+
+            //update channel bars ... this means feeding new EEG data into plots
+            for(int i = 0; i < numAnalogReadBars; i++) {
+                pulseReadBars[i].update();
+            }
+
+            //ignore top left button interaction when widgetSelector dropdown is active
+            ignoreButtonCheck(analogModeButton);
         }
 
         updateOnOffButton();
@@ -123,49 +176,46 @@ class W_PulseSensor extends Widget {
         }
     }
 
-    void addBPM(int bpm) {
-        for(int i=0; i<BPMwaveY.length-1; i++){
-            BPMwaveY[i] = BPMwaveY[i+1];
+    void draw() {
+        if(visible) {
+            super.draw(); //calls the parent draw() method of Widget (DON'T REMOVE)
+
+            //remember to refer to x,y,w,h which are the positioning variables of the Widget class
+            pushStyle();
+            //draw channel bars
+            analogModeButton.draw();
+            if (analogBoard.isAnalogActive()) {
+                for(int i = 0; i < numAnalogReadBars; i++) {
+                    pulseReadBars[i].draw();
+                }
+            }
+            popStyle();
         }
-        BPMwaveY[BPMwaveY.length-1] = bpm;
     }
 
-    void draw(){
-        super.draw(); //calls the parent draw() method of Widget (DON'T REMOVE)
-
-
-        //remember to refer to x,y,w,h which are the positioning variables of the Widget class
-        pushStyle();
-
-
-        fill(graphBG);
-        stroke(graphStroke);
-        rect(PulseWindowX,PulseWindowY,PulseWindowWidth,PulseWindowHeight);
-        rect(BPMwindowX,BPMwindowY,BPMwindowWidth,BPMwindowHeight);
-
-        fill(50);
-        textFont(p4, 16);
-        textAlign(LEFT,CENTER);
-        text("BPM "+BPM, BPMposX, BPMposY);
-        text("IBI "+IBI+"mS", IBIposX, IBIposY);
-
-        if (analogBoard.isAnalogActive()) {
-            drawWaves();
-        }
-
-        analogModeButton.draw();
-
-        popStyle();
-    }
-
-    void screenResized(){
+    void screenResized() {
         super.screenResized(); //calls the parent screenResized() method of Widget (DON'T REMOVE)
 
-        setPulseWidgetVariables();
+        xF = float(x); //float(int( ... is a shortcut for rounding the float down... so that it doesn't creep into the 1px margin
+        yF = float(y);
+        wF = float(w);
+        hF = float(h);
+
+        ar_x = xF + arPadding;
+        ar_y = yF + (arPadding);
+        ar_w = wF - arPadding*2;
+        ar_h = hF - playbackWidgetHeight - plotBottomWell - (arPadding*2);
+        analogReadBarHeight = int(ar_h/numAnalogReadBars);
+
+        for(int i = 0; i < numAnalogReadBars; i++) {
+            int analogReadBarY = int(ar_y) + i*(analogReadBarHeight); //iterate through bar locations
+            pulseReadBars[i].screenResized(int(ar_x), analogReadBarY, int(ar_w), analogReadBarHeight); //bar x, bar y, bar w, bar h
+        }
+
         analogModeButton.setPos((int)(x + 3), (int)(y + 3 - navHeight));
     }
 
-    void mousePressed(){
+    void mousePressed() {
         super.mousePressed(); //calls the parent mousePressed() method of Widget (DON'T REMOVE)
 
         if (analogModeButton.isMouseHere()) {
@@ -173,37 +223,24 @@ class W_PulseSensor extends Widget {
         }
     }
 
-    void mouseReleased(){
+    void mouseReleased() {
         super.mouseReleased(); //calls the parent mouseReleased() method of Widget (DON'T REMOVE)
 
-        if(analogModeButton.isActive && analogModeButton.isMouseHere()){
+        if(analogModeButton.isActive && analogModeButton.isMouseHere()) {
+            // println("analogModeButton...");
             if (!analogBoard.isAnalogActive()) {
                 analogBoard.setAnalogActive(true);
-                output("Starting to read analog inputs on pin marked D11.");
+                if (selectedProtocol == BoardProtocol.WIFI) {
+                    output("Starting to read analog inputs on pin marked A5 (D11) and A6 (D12)");
+                } else {
+                    output("Starting to read analog inputs on pin marked A5 (D11), A6 (D12) and A7 (D13)");
+                }
             } else {
                 analogBoard.setAnalogActive(false);
                 output("Starting to read accelerometer");
             }
         }
         analogModeButton.setIsActive(false);
-    }
-
-    //add custom functions here
-    void setPulseWidgetVariables(){
-        PulseWindowWidth = ((w/4)*3) - padding;
-        PulseWindowHeight = h - padding *2;
-        PulseWindowX = x + padding;
-        PulseWindowY = y + h - PulseWindowHeight - padding;
-
-        BPMwindowWidth = w/4 - (padding + padding/2);
-        BPMwindowHeight = PulseWindowHeight; // - padding;
-        BPMwindowX = PulseWindowX + PulseWindowWidth + padding/2;
-        BPMwindowY = PulseWindowY; // + padding;
-
-        BPMposX = BPMwindowX + padding/2;
-        BPMposY = y - padding; // BPMwindowHeight + int(float(padding)*2.5);
-        IBIposX = PulseWindowX + PulseWindowWidth/2; // + padding/2
-        IBIposY = y - padding;
     }
 
     void initializePulseFinderVariables(){
@@ -236,39 +273,24 @@ class W_PulseSensor extends Widget {
 
     }
 
-    void drawWaves(){
-        int xi, yi;
-        noFill();
-        strokeWeight(1);
-        stroke(pulseWave);
-        beginShape();                                  // using beginShape() renders fast
-        for(int i=0; i<PulseWaveY.length; i++){
-            xi = int(map(i,0, PulseWaveY.length-1,0, PulseWindowWidth-1));
-            xi += PulseWindowX;
-            yi = int(map(PulseWaveY[i],0.0,1023.0,
-                float(PulseWindowY + PulseWindowHeight),float(PulseWindowY)));
-            vertex(xi, yi);
+    private void addBPM(int bpm) {
+        for(int i=0; i<BPMwaveY.length-1; i++){
+            BPMwaveY[i] = BPMwaveY[i+1];
         }
-        endShape();
-
-        strokeWeight(2);
-        stroke(pulseWave);
-        beginShape();                                  // using beginShape() renders fast
-        for(int i=0; i<BPMwaveY.length; i++){
-            xi = int(map(i,0, BPMwaveY.length-1,0, BPMwindowWidth-1));
-            xi += BPMwindowX;
-            yi = int(map(BPMwaveY[i], 0.0,200.0,
-                float(BPMwindowY + BPMwindowHeight), float(BPMwindowY)));
-            vertex(xi, yi);
-        }
-        endShape();
-
+        BPMwaveY[BPMwaveY.length-1] = bpm;
     }
 
+    public int getBPM() {
+        return BPM;
+    }
+
+    public int getIBI() {
+        return IBI;
+    }
     // THIS IS THE BEAT FINDING FUNCTION
     // BASED ON CODE FROM World Famous Electronics, MAKERS OF PULSE SENSOR
     // https://github.com/WorldFamousElectronics/PulseSensor_Amped_Arduino
-    void processSignal(int sample){                         // triggered when Timer2 counts to 124
+    public void processSignal(int sample){                         // triggered when Timer2 counts to 124
         // cli();                                      // disable interrupts while we do this
         // Signal = analogRead(pulsePin);              // read the Pulse Sensor
         sampleCounter += (4 * syntheticMultiplier);                         // keep track of the time in mS with this variable
@@ -345,6 +367,280 @@ class W_PulseSensor extends Widget {
 
         // sei();                                   // enable interrupts when youre done!
     }// end processSignal
+};
 
+//These functions need to be global! These functions are activated when an item from the corresponding dropdown is selected
+void VertScale_Pulse(int n) {
+    settings.arVertScaleSave = n;
+    for(int i = 0; i < w_analogRead.numAnalogReadBars; i++) {
+            w_pulseSensor.pulseReadBars[i].adjustVertScale(w_analogRead.yLimOptions[n]);
+    }
+}
+
+//triggered when there is an event in the LogLin Dropdown
+void Duration_Pulse(int n) {
+    // println("adjust duration to: " + w_analogRead.pulseReadBars[i].adjustTimeAxis(n));
+    //set analog read x axis to the duration selected from dropdown
+    settings.arHorizScaleSave = n;
+
+    //Sync the duration of Time Series, Accelerometer, and Analog Read(Cyton Only)
+    for(int i = 0; i < w_analogRead.numAnalogReadBars; i++) {
+        if (n == 0) {
+            w_pulseSensor.pulseReadBars[i].adjustTimeAxis(w_timeSeries.xLimOptions[settings.tsHorizScaleSave]);
+        } else {
+            w_pulseSensor.pulseReadBars[i].adjustTimeAxis(w_analogRead.xLimOptions[n]);
+        }
+    }
+}
+
+//========================================================================================================================
+//                      Analog Voltage BAR CLASS -- Implemented by Analog Read Widget Class
+//========================================================================================================================
+//this class contains the plot and buttons for a single channel of the Time Series widget
+//one of these will be created for each channel (4, 8, or 16)
+class PulseReadBar{
+
+    private int analogInputPin;
+    private String dataTypeString;
+    private int x, y, w, h;
+    private boolean isOn; //true means data is streaming and channel is active on hardware ... this will send message to OpenBCI Hardware
+
+    private GPlot plot; //the actual grafica-based GPlot that will be rendering the Time Series trace
+    private GPointsArray analogReadPoints;
+    private int nPoints;
+    private int numSeconds;
+    private float timeBetweenPoints;
+
+    private color channelColor; //color of plot trace
+
+    private boolean isAutoscale; //when isAutoscale equals true, the y-axis of each channelBar will automatically update to scale to the largest visible amplitude
+    private int autoScaleYLim = 0;
+
+    private TextBox analogValue;
+    private TextBox pulseDataType;
+
+    private boolean drawAnalogValue;
+    private int lastProcessedDataPacketInd = 0;
+
+    private AnalogCapableBoard analogBoard;
+
+    PulseReadBar(PApplet _parent, int _analogInputPin, int _x, int _y, int _w, int _h) { // channel number, x/y location, height, width
+
+        analogInputPin = _analogInputPin;
+        switch (analogInputPin) {
+            case 0:
+                dataTypeString = "Raw Data";
+                break;
+            case 1:
+                dataTypeString = "Pulse";
+                break;
+            case 2:
+                dataTypeString = "IBI";
+                break;
+        }
+        dataTypeString = str(analogInputPin);
+        isOn = true;
+
+        x = _x;
+        y = _y;
+        w = _w;
+        h = _h;
+
+        numSeconds = 20;
+        plot = new GPlot(_parent);
+        plot.setPos(x + 36 + 4, y);
+        plot.setDim(w - 36 - 4, h);
+        plot.setMar(0f, 0f, 0f, 0f);
+        plot.setLineColor((int)channelColors[(analogInputPin)%8]);
+        plot.setXLim(-3.2,-2.9);
+        plot.setYLim(-200,200);
+        plot.setPointSize(2);
+        plot.setPointColor(0);
+        plot.setAllFontProperties("Arial", 0, 14);
+        if(analogInputPin == 2) {
+            plot.getXAxis().setAxisLabelText("Time (s)");
+        }
+
+        initArrays();
+
+        analogValue = new TextBox("t", x + 36 + 4 + (w - 36 - 4) - 2, y + h);
+        analogValue.textColor = color(bgColor);
+        analogValue.alignH = RIGHT;
+        // analogValue.alignV = TOP;
+        analogValue.drawBackground = true;
+        analogValue.backgroundColor = color(255,255,255,125);
+
+        pulseDataType = new TextBox(dataTypeString, x+3, y + int(h/2.0) + 7);
+        pulseDataType.textColor = color(bgColor);
+        pulseDataType.alignH = CENTER;
+
+        drawAnalogValue = true;
+        analogBoard = (AnalogCapableBoard) currentBoard;
+    }
+
+    void initArrays() {
+        nPoints = nPointsBasedOnDataSource();
+        timeBetweenPoints = (float)numSeconds / (float)nPoints;
+        analogReadPoints = new GPointsArray(nPoints);
+
+        for (int i = 0; i < nPoints; i++) {
+            float time = calcTimeAxis(i);
+            float analog_value = 0.0; //0.0 for all points to start
+            analogReadPoints.set(i, time, analog_value, "");
+        }
+
+        plot.setPoints(analogReadPoints); //set the plot with 0.0 for all auxReadPoints to start
+    }
+
+    void update() {
+
+         // early out if unactive
+        if (!analogBoard.isAnalogActive()) {
+            return;
+        }
+
+        // update data in plot
+        updatePlotPoints();
+        if(isAutoscale) {
+            autoScale();
+        }
+
+        //Fetch the last value in the buffer to display on screen
+        float val = analogReadPoints.getY(nPoints-1);
+        analogValue.string = String.format(getFmt(val),val);
+        println(w_pulseSensor.getIBI());
+    }
+
+    void draw() {
+        pushStyle();
+
+        //draw plot
+        stroke(31,69,110, 50);
+        fill(color(125,30,12,30));
+
+        rect(x + 36 + 4, y, w - 36 - 4, h);
+
+        plot.beginDraw();
+        plot.drawBox(); // we won't draw this eventually ...
+        plot.drawGridLines(0);
+        plot.drawLines();
+
+        if(analogInputPin == 2) { //only draw the x axis label on the bottom channel bar
+            plot.drawXAxis();
+            plot.getXAxis().draw();
+        }
+
+        plot.endDraw();
+
+        if(drawAnalogValue) {
+            analogValue.draw();
+            pulseDataType.draw();
+        }
+
+        popStyle();
+    }
+
+    private String getFmt(float val) {
+        String fmt;
+            if (val > 100.0f) {
+                fmt = "%.0f";
+            } else if (val > 10.0f) {
+                fmt = "%.1f";
+            } else {
+                fmt = "%.2f";
+            }
+            return fmt;
+    }
+
+    float calcTimeAxis(int sampleIndex) {
+        return -(float)numSeconds + (float)sampleIndex * timeBetweenPoints;
+    }
+
+    void updatePlotPoints() {
+        List<double[]> allData = currentBoard.getData(nPoints);
+        int[] channels = analogBoard.getAnalogChannels();
+
+        if (channels.length == 0) {
+            return;
+        }
+        
+        for (int i=0; i < nPoints; i++) {
+            float timey = calcTimeAxis(i);
+            float value = 0;
+            if (analogInputPin == 0) {
+                try {
+                    value = (float)allData.get(i)[channels[0]];
+                    w_pulseSensor.processSignal(0);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else if (analogInputPin == 1) { // PULSE RATE
+                //println(w_pulseSensor.getIBI());
+                //value = (float)w_pulseSensor.getBPM();
+            } else if (analogInputPin == 2) { // IBI
+                //value = (float)w_pulseSensor.getIBI();
+            }
+            
+            analogReadPoints.set(i, timey, value, "");
+        }
+
+        plot.setPoints(analogReadPoints);
+    }
+
+    int nPointsBasedOnDataSource() {
+        return numSeconds * currentBoard.getSampleRate();
+    }
+
+    void adjustTimeAxis(int _newTimeSize) {
+        numSeconds = _newTimeSize;
+        plot.setXLim(-_newTimeSize,0);
+
+        nPoints = nPointsBasedOnDataSource();
+
+        analogReadPoints = new GPointsArray(nPoints);
+        if (_newTimeSize > 1) {
+            plot.getXAxis().setNTicks(_newTimeSize);  //sets the number of axis divisions...
+        }
+        else {
+            plot.getXAxis().setNTicks(10);
+        }
+        
+        updatePlotPoints();
+    }
+
+    void adjustVertScale(int _vertScaleValue) {
+        if(_vertScaleValue == 0) {
+            isAutoscale = true;
+        } else {
+            isAutoscale = false;
+            plot.setYLim(-_vertScaleValue, _vertScaleValue);
+        }
+    }
+
+    void autoScale() {
+        autoScaleYLim = 0;
+        for(int i = 0; i < nPoints; i++) {
+            if(int(abs(analogReadPoints.getY(i))) > autoScaleYLim) {
+                autoScaleYLim = int(abs(analogReadPoints.getY(i)));
+            }
+        }
+        plot.setYLim(-autoScaleYLim, autoScaleYLim);
+    }
+
+    void screenResized(int _x, int _y, int _w, int _h) {
+        x = _x;
+        y = _y;
+        w = _w;
+        h = _h;
+
+        plot.setPos(x + 36 + 4, y);
+        plot.setDim(w - 36 - 4, h);
+
+        analogValue.x = x + 36 + 4 + (w - 36 - 4) - 2;
+        analogValue.y = y + h;
+
+        pulseDataType.x = x + 14;
+        pulseDataType.y = y + int(h/2.0) + 7;
+    }
 
 };

@@ -21,7 +21,8 @@ W_GanglionImpedance w_ganglionImpedance;
 W_HeadPlot w_headPlot;
 W_template w_template1;
 W_emg w_emg;
-W_PulseSensor w_pulsesensor;
+W_PulseSensor w_pulseSensor;
+W_PulseSensorOld oldPulseSensor;
 W_AnalogRead w_analogRead;
 W_DigitalRead w_digitalRead;
 W_playback w_playback;
@@ -104,9 +105,10 @@ void setupWidgets(PApplet _this, ArrayList<Widget> w){
     //only instantiate these widgets if you are using a Cyton board for live streaming
     if(currentBoard instanceof AnalogCapableBoard){
         //Cyton Widget_8
-        w_pulsesensor = new W_PulseSensor(_this);
-        w_pulsesensor.setTitle("Pulse Sensor");
-        addWidget(w_pulsesensor, w);
+        oldPulseSensor = new W_PulseSensorOld(_this);
+        w_pulseSensor = new W_PulseSensor(_this);
+        w_pulseSensor.setTitle("Pulse Sensor");
+        addWidget(w_pulseSensor, w);
         // println("  setupWidgets pulse sensor -- " + millis());
     }
 

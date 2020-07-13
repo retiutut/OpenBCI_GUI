@@ -2004,13 +2004,13 @@ class Stream extends Thread {
             // OSC
             if (this.protocol.equals("OSC")) {
                 //ADD BPM Data (BPM, Signal, IBI)
-                for (int i = 0; i < (w_pulsesensor.PulseWaveY.length); i++) {//This works
+                for (int i = 0; i < (w_pulseSensor.PulseWaveY.length); i++) {//This works
                     msg.clearArguments(); //This belongs here
-                    msg.add(w_pulsesensor.BPM); //Add BPM first
-                    msg.add(w_pulsesensor.PulseWaveY[i]); //Add Raw Signal second
-                    msg.add(w_pulsesensor.IBI); //Add IBI third
+                    msg.add(w_pulseSensor.BPM); //Add BPM first
+                    msg.add(w_pulseSensor.PulseWaveY[i]); //Add Raw Signal second
+                    msg.add(w_pulseSensor.IBI); //Add IBI third
                     //Message received in Max via OSC is a list of three integers without commas: 75 512 600 : BPM Signal IBI
-                    //println(" " + this.port + " ~~~~ " + w_pulsesensor.BPM + "," +  w_pulsesensor.PulseWaveY[i] + "," + w_pulsesensor.IBI);
+                    //println(" " + this.port + " ~~~~ " + w_pulseSensor.BPM + "," +  w_pulseSensor.PulseWaveY[i] + "," + w_pulseSensor.IBI);
                     try {
                         this.osc.send(msg,this.netaddress);
                     } catch (Exception e) {
@@ -2020,10 +2020,10 @@ class Stream extends Thread {
             // UDP
             } else if (this.protocol.equals("UDP")) { //////////////////This needs to be checked
                 String outputter = "{\"type\":\"pulse\",\"data\":";
-                for (int i = 0; i < (w_pulsesensor.PulseWaveY.length); i++) {
-                    outputter += str(w_pulsesensor.BPM) + ",";  //Comma separated string output (BPM,Raw Signal,IBI)
-                    outputter += str(w_pulsesensor.PulseWaveY[i]) + ",";
-                    outputter += str(w_pulsesensor.IBI);
+                for (int i = 0; i < (w_pulseSensor.PulseWaveY.length); i++) {
+                    outputter += str(w_pulseSensor.BPM) + ",";  //Comma separated string output (BPM,Raw Signal,IBI)
+                    outputter += str(w_pulseSensor.PulseWaveY[i]) + ",";
+                    outputter += str(w_pulseSensor.IBI);
                     outputter += "]}\r\n";
                     try {
                         this.udp.send(outputter, this.ip, this.port);
@@ -2033,20 +2033,20 @@ class Stream extends Thread {
                 }
             // LSL
             } else if (this.protocol.equals("LSL")) { ///////////////////This needs to be checked
-                for (int i = 0; i < (w_pulsesensor.PulseWaveY.length); i++) {
-                    dataToSend[0] = w_pulsesensor.BPM;  //Array output
-                    dataToSend[1] = w_pulsesensor.PulseWaveY[i];
-                    dataToSend[2] = w_pulsesensor.IBI;
+                for (int i = 0; i < (w_pulseSensor.PulseWaveY.length); i++) {
+                    dataToSend[0] = w_pulseSensor.BPM;  //Array output
+                    dataToSend[1] = w_pulseSensor.PulseWaveY[i];
+                    dataToSend[2] = w_pulseSensor.IBI;
                 }
                 // Add timestamp to LSL Stream
                 outlet_data.push_chunk(dataToSend);
             // Serial
             } else if (this.protocol.equals("Serial")) {     // Send Pulse Data (BPM,Signal,IBI) over Serial
-                for (int i = 0; i < (w_pulsesensor.PulseWaveY.length); i++) {
+                for (int i = 0; i < (w_pulseSensor.PulseWaveY.length); i++) {
                     serialMessage = ""; //clear message
-                    int BPM = (w_pulsesensor.BPM);
-                    int Signal = (w_pulsesensor.PulseWaveY[i]);
-                    int IBI = (w_pulsesensor.IBI);
+                    int BPM = (w_pulseSensor.BPM);
+                    int Signal = (w_pulseSensor.PulseWaveY[i]);
+                    int IBI = (w_pulseSensor.IBI);
                     serialMessage += BPM + ","; //Comma separated string output (BPM,Raw Signal,IBI)
                     serialMessage += Signal + ",";
                     serialMessage += IBI;
