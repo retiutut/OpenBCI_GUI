@@ -59,6 +59,7 @@ class W_Networking extends Widget {
     Boolean udp_visible;
     Boolean lsl_visible;
     Boolean serial_visible;
+    Boolean nmosc_visible;
     List<String> dataTypes;
 
     Boolean cp5ElementsAreActive = false;
@@ -112,6 +113,8 @@ class W_Networking extends Widget {
         "obci_eeg1","EEG",
         "obci_eeg2","EEG",
         "obci_eeg3","EEG"};
+    String[] nm_oscTextFieldNames = {"NM_OSC_ip1","NM_OSC_port1","NM_OSC_address1"};
+    String[] nm_oscTextDefaultVals = {"127.0.0.1","12345","/openbci"};
     String networkingGuideURL = "https://openbci.github.io/Documentation/docs/06Software/01-OpenBCISoftware/GUIWidgets#networking";
     String dataOutputsURL = "https://docs.google.com/document/d/e/2PACX-1vR_4DXPTh1nuiOwWKwIZN3NkGP3kRwpP4Hu6fQmy3jRAOaydOuEI1jket6V4V6PG4yIG15H1N7oFfdV/pub";
     boolean configIsVisible = false;
@@ -183,6 +186,8 @@ class W_Networking extends Widget {
         copyCP5TextToMap(udpTextFieldNames, cp5Map);
         //lsl textfields
         copyCP5TextToMap(lslTextFieldNames, cp5Map);
+        //neuromore osc textfiled
+        copyCP5TextToMap(nm_oscTextFieldNames, cp5Map);
         //Serial baud rate and port name
         cp5Map.put("baud_rate", int(cp5_networking_baudRate.get(ScrollableList.class, "baud_rate").getValue()));
         String s = cp5_networking_portName.get(ScrollableList.class, "port_name").getItem(comPortToSave).get("name").toString();
@@ -237,6 +242,8 @@ class W_Networking extends Widget {
             cp5ElementsAreActive = textfieldsAreActive(udpTextFieldNames);
         } else if (protocolMode.equals("LSL")) {
             cp5ElementsAreActive = textfieldsAreActive(lslTextFieldNames);
+        } else if (protocolMode.equals("NM_OSC")) {
+            cp5ElementsAreActive = textfieldsAreActive(nm_oscTextFieldNames);
         } else {
             //For serial mode, disable fft output by switching to bandpower instead
             this.disableCertainOutputs((int)getCP5Map().get(datatypeNames[0]));
@@ -319,7 +326,10 @@ class W_Networking extends Widget {
         fill(0,0,0);// Background fill: white
         textFont(h1, headerFontSize);
 
-        if (!protocolMode.equals("Serial")) {
+        if (protocolMode.equals("Serial") || protocolMode.equals("NM_OSC")) {
+            text(" Stream 1",column1,row0);
+        }
+        if (!protocolMode.equals("Serial") || protocolMode.equals("NM_OSC")) {
             text(" Stream 1",column1,row0);
             text(" Stream 2",column2,row0);
             text(" Stream 3",column3,row0);
@@ -358,6 +368,14 @@ class W_Networking extends Widget {
             text("Baud/Port", column0,row2);
             // text("Port Name", column0,row3);
             text("Filters",column0,row3);
+        } else if (protocolMode.equals("OSC")) {
+            textFont(f4,40);
+            text("Neuromore OSC", x+20,y+h/8+15);
+            textFont(h1,headerFontSize);
+            text("IP", column0,row2);
+            text("Port", column0,row3);
+            text("Address",column0,row4);
+            text("Filters",column0,row5);
         }
         popStyle();
 
@@ -376,6 +394,8 @@ class W_Networking extends Widget {
         createTextFields(udpTextFieldNames, udpTextDefaultVals);
         // LSL
         createTextFields(lslTextFieldNames, lslTextDefaultVals);
+        //Neuromore OSC
+        createTextFields(nm_oscTextFieldNames, nm_oscTextDefaultVals);
 
         // Serial
         //grab list of existing serial port options and store into Arrays.list...
@@ -434,6 +454,7 @@ class W_Networking extends Widget {
         udp_visible=false;
         lsl_visible=false;
         serial_visible=false;
+        nmosc_visible=false;
 
         if (protocolMode.equals("OSC")) {
             osc_visible = true;
@@ -443,17 +464,20 @@ class W_Networking extends Widget {
             lsl_visible = true;
         } else if (protocolMode.equals("Serial")) {
             serial_visible = true;
+        } else if (protocolMode.equals("Serial")) {
+            nmosc_visible = true;
         }
 
         setTextFieldVisible(oscTextFieldNames, osc_visible);
         setTextFieldVisible(udpTextFieldNames, udp_visible);
         setTextFieldVisible(lslTextFieldNames, lsl_visible);
+        setTextFieldVisible(nm_oscTextFieldNames, nmosc_visible);
 
         cp5_networking_portName.get(ScrollableList.class, "port_name").setVisible(serial_visible);
         cp5_networking_baudRate.get(ScrollableList.class, "baud_rate").setVisible(serial_visible);
 
         cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").setVisible(true);
-        if (!serial_visible) {
+        if (udp_visible || lsl_visible || osc_visible) {
             cp5_networking_dropdowns.get(ScrollableList.class, "dataType2").setVisible(true);
             cp5_networking_dropdowns.get(ScrollableList.class, "dataType3").setVisible(true);
         } else{
@@ -469,7 +493,7 @@ class W_Networking extends Widget {
         }
 
         cp5_networking.get(Toggle.class, "filter1").setVisible(true);
-        if (!serial_visible) {
+        if (udp_visible || lsl_visible || osc_visible) {
             cp5_networking.get(Toggle.class, "filter2").setVisible(true);
             cp5_networking.get(Toggle.class, "filter3").setVisible(true);
         } else {
@@ -480,6 +504,13 @@ class W_Networking extends Widget {
         if (protocolMode.equals("OSC")) {
             cp5_networking.get(Toggle.class, "filter4").setVisible(true);
         } else {
+            cp5_networking.get(Toggle.class, "filter4").setVisible(false);
+        }
+
+        if (protocolMode.equals("NM_OSC")) {
+            cp5_networking.get(Toggle.class, "filter1").setVisible(true);
+            cp5_networking.get(Toggle.class, "filter2").setVisible(false);
+            cp5_networking.get(Toggle.class, "filter3").setVisible(false);
             cp5_networking.get(Toggle.class, "filter4").setVisible(false);
         }
     }
@@ -581,7 +612,7 @@ class W_Networking extends Widget {
                         startNetwork();         // Begin streaming
                         output("Network Stream Started");
                     } catch (Exception e) {
-                        //e.printStackTrace();
+                        e.printStackTrace();
                         String exception = e.toString();
                         String [] nwError = split(exception, ':');
                         outputError("Networking Error - Port: " + nwError[2]);
@@ -861,6 +892,13 @@ class W_Networking extends Widget {
             // cp5_networking_portName.get(ScrollableList.class, "port_name").setSize(fullColumnWidth, (4)*(navH-4)); //
             cp5_networking_portName.get(ScrollableList.class, "port_name").setSize(halfWidth, (5)*(navH-4)); //halfWidth
             cp5_networking.get(Toggle.class, "filter1").setPosition(column1 + filtOffsetX, row3 + filtOffsetY);
+        } else if (protocolMode.equals("NM_OSC")) {
+            for (String textField : nm_oscTextFieldNames) {
+                cp5_networking.get(Textfield.class, textField).setWidth(itemWidth);
+            }
+            cp5_networking.get(Textfield.class, "NM_OSC_ip1").setPosition(column1, row2 - offset);
+            cp5_networking.get(Textfield.class, "NM_OSC_port1").setPosition(column1, row3 - offset);
+            cp5_networking.get(Textfield.class, "NM_OSC_address1").setPosition(column1, row4 - offset);
         }
 
         cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").setPosition(column1, row1-offset);
@@ -887,6 +925,7 @@ class W_Networking extends Widget {
     void hideElements() {
         String[] allTextFields = concat(oscTextFieldNames, udpTextFieldNames);
         allTextFields = concat(allTextFields, lslTextFieldNames);
+        allTextFields = concat(allTextFields, nm_oscTextFieldNames);
         hideAllTextFields(allTextFields);
 
         cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").setVisible(false);
@@ -1033,6 +1072,17 @@ class W_Networking extends Widget {
                 baudRate = Integer.parseInt(baudRates.get((int)(cp5_networking_baudRate.get(ScrollableList.class, "baud_rate").getValue())));
                 filt_pos = cp5_networking.get(Toggle.class, "filter1").getBooleanValue();
                 stream1 = new Stream(dt1, name, baudRate, filt_pos, pApplet, nchan);  //String dataType, String portName, int baudRate, int filter, PApplet _this
+            } else {
+                stream1 = null;
+            }
+        } else if (protocolMode.equals("NM_OSC")) {
+            int numVals = 10;
+            if (!dt1.equals("None")) {
+                ip = cp5_networking.get(Textfield.class, "NM_OSC_ip1").getText();
+                port = Integer.parseInt(cp5_networking.get(Textfield.class, "NM_OSC_port1").getText());
+                address = cp5_networking.get(Textfield.class, "NM_OSC_address1").getText();
+                filt_pos = cp5_networking.get(Toggle.class, "filter1").getBooleanValue();
+                stream1 = new Stream(dt1, ip, port, address, filt_pos, nchan, numVals);
             } else {
                 stream1 = null;
             }
@@ -1198,6 +1248,7 @@ class W_Networking extends Widget {
                 lockTextFields(oscTextFieldNames, true);
                 lockTextFields(udpTextFieldNames, true);
                 lockTextFields(lslTextFieldNames, true);
+                lockTextFields(nm_oscTextFieldNames, true);
                 //println("##LOCKED NETWORKING CP5 CONTROLLERS##");
             } else {
                 cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").unlock();
@@ -1208,6 +1259,7 @@ class W_Networking extends Widget {
                 lockTextFields(oscTextFieldNames, false);
                 lockTextFields(udpTextFieldNames, false);
                 lockTextFields(lslTextFieldNames, false);
+                lockTextFields(nm_oscTextFieldNames, false);
             }
             configIsVisible = topNav.configSelector.isVisible;
             layoutIsVisible = topNav.layoutSelector.isVisible;
@@ -1257,6 +1309,7 @@ class Stream extends Thread {
     OscP5 osc;
     NetAddress netaddress;
     OscMessage msg;
+    OscMessage[] nm_msgs;
     //UDP Objects
     UDP udp;
     ByteBuffer buffer;
@@ -1359,6 +1412,22 @@ class Stream extends Thread {
         } catch (Exception e) {
             //nothing
         }
+    }
+    /* Neuromore OSC Stream */
+    Stream(String dataType, String ip, int port, String address, boolean filter, int _nchan, int _numVals) {
+        this.protocol = "NM_OSC";
+        this.dataType = dataType;
+        this.ip = ip;
+        this.port = port;
+        this.address = address;
+        this.filter = filter;
+        this.isStreaming = false;
+        updateNumChan(_nchan);
+        try {
+            closeNetwork(); //make sure everything is closed!
+        } catch (Exception e) {
+        }
+        this.nm_msgs = new OscMessage[_numVals];
     }
 
     void start() {
@@ -1540,8 +1609,20 @@ class Stream extends Thread {
                         println(e.getMessage());
                     }
                 }
-            }
+            } else if (this.protocol.equals("NM_OSC")) {
+                for (int i=0;i<nPointsPerUpdate;i++) {
+                    for (int j=0;j<numChan;j++) {
+                        nm_msgs[j].clearArguments();
+                        nm_msgs[j].add(w_networking.dataBufferToSend[j][i]);
+                        try {
+                            this.osc.send(nm_msgs[j],this.netaddress);
+                        } catch (Exception e) {
+                            println(e.getMessage());
+                        }
+                    }
 
+                }
+            }
 
         // TIME SERIES FILTERED
         } else {
@@ -1600,6 +1681,19 @@ class Stream extends Thread {
                     } catch (Exception e) {
                         println(e.getMessage());
                     }
+                }
+            } else if (this.protocol.equals("NM_OSC")) {
+                for (int i=0;i<nPointsPerUpdate;i++) {
+                    for (int j=0;j<numChan;j++) {
+                        nm_msgs[j].clearArguments();
+                        nm_msgs[j].add(dataProcessingFilteredBuffer[j][start+i]);
+                        try {
+                            this.osc.send(nm_msgs[j],this.netaddress);
+                        } catch (Exception e) {
+                            println(e.getMessage());
+                        }
+                    }
+
                 }
             }
         }
@@ -1753,6 +1847,32 @@ class Stream extends Thread {
                         this.serial_networking.write(serialMessage);
                     } catch (Exception e) {
                         println(e.getMessage());
+                    }
+                }
+            } else if (this.protocol.equals("NM_OSC")) {
+                /*
+                for (int i=0;i<nPointsPerUpdate;i++) {
+                    for (int j=0;j<numChan;j++) {
+                        nm_msgs[j].clearArguments();
+                        nm_msgs[j].add(dataProcessingFilteredBuffer[j][start+i]);
+                        try {
+                            this.osc.send(nm_msgs[j],this.netaddress);
+                        } catch (Exception e) {
+                            println(e.getMessage());
+                        }
+                    }
+
+                }
+                */
+                for (int i=0;i<1;i++) {
+                    for (int j=0;j<numBandPower;j++) {
+                        nm_msgs[j].clearArguments();
+                        nm_msgs[j].add(dataProcessing.avgPowerInBins[i][j]); // [CHAN][BAND]
+                        try {
+                            this.osc.send(nm_msgs[j],this.netaddress);
+                        } catch (Exception e) {
+                            println(e.getMessage());
+                        }
                     }
                 }
             }
@@ -2129,6 +2249,18 @@ class Stream extends Thread {
                 this.msg = new OscMessage(this.address);
             //} catch (Exception e) {
             //}
+        } else if (this.protocol.equals("NM_OSC")) {
+            //Possibly enter a nice custom exception here
+            //try {
+                this.osc = new OscP5(this,this.port + 1000);
+                this.netaddress = new NetAddress(this.ip,this.port);
+                for (int i = 0; i < 5; i++) {
+                    String _chanAddress = this.address + "/" + i;
+                    this.nm_msgs[i] = new OscMessage(_chanAddress);
+                }
+                //this.msg = new OscMessage(this.address);
+            //} catch (Exception e) {
+            //}
         } else if (this.protocol.equals("UDP")) {
             this.udp = new UDP(this);
             this.udp.setBuffer(20000);
@@ -2206,6 +2338,8 @@ void Protocol(int protocolIndex) {
     } else if (protocolIndex==0) {
         w_networking.protocolMode = "Serial";
         w_networking.disableCertainOutputs((int)w_networking.cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").getValue());
+    } else if (protocolIndex==4) {
+        w_networking.protocolMode = "NM_OSC";
     }
     println("Networking: Protocol mode set to " + w_networking.protocolMode + ". Stopping network");
     w_networking.screenResized();
